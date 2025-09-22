@@ -85,6 +85,75 @@ jobs:
           echo "## Backend Unit Test Summary" >> $GITHUB_STEP_SUMMARY
           cat test-summary.md >> $GITHUB_STEP_SUMMARY
 
+      - name: Generate detailed test case table (Markdown)
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+import glob
+import os
+import xml.etree.ElementTree as ET
+
+reports = glob.glob('backend/target/surefire-reports/TEST-*.xml')
+rows = []
+for rp in reports:
+    try:
+        tree = ET.parse(rp)
+        root = tree.getroot()
+        # Support both <testsuite> as root or <testsuites>
+        suites = []
+        if root.tag.endswith('testsuite'):
+            suites = [root]
+        else:
+            suites = [s for s in root.findall('.//testsuite')]
+        for suite in suites:
+            for tc in suite.findall('.//testcase'):
+                classname = tc.attrib.get('classname','')
+                name = tc.attrib.get('name','')
+                time = tc.attrib.get('time','0')
+                status = 'PASS'
+                message = ''
+                skipped = tc.find('skipped')
+                failure = tc.find('failure')
+                error = tc.find('error')
+                if skipped is not None:
+                    status = 'SKIPPED'
+                    message = (skipped.attrib.get('message') or '').strip()
+                elif failure is not None:
+                    status = 'FAIL'
+                    message = (failure.attrib.get('message') or '').strip()
+                    if not message:
+                        txt = (failure.text or '').strip().splitlines()
+                        message = txt[0] if txt else ''
+                elif error is not None:
+                    status = 'ERROR'
+                    message = (error.attrib.get('message') or '').strip()
+                    if not message:
+                        txt = (error.text or '').strip().splitlines()
+                        message = txt[0] if txt else ''
+                rows.append((classname, name, status, time, message))
+    except Exception as e:
+        pass
+
+out = []
+out.append('\n#### Detailed Test Cases')
+out.append('\n| Class | Test | Status | Time (s) | Message |')
+out.append('|---|---|---:|---:|---|')
+for classname, name, status, time, message in sorted(rows):
+    # Escape pipes
+    cname = classname.replace('|','\\|')
+    tname = name.replace('|','\\|')
+    msg = (message or '').replace('\n',' ').replace('|','\\|')
+    out.append(f"| {cname} | {tname} | {status} | {time} | {msg} |")
+
+with open('test-details.md', 'w', encoding='utf-8') as f:
+    f.write('\n'.join(out) + '\n')
+PY
+          # Append to main summary file
+          cat test-details.md >> test-summary.md
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat test-details.md >> $GITHUB_STEP_SUMMARY
+
       - name: Comment test summary on PR
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         uses: peter-evans/create-or-update-comment@v4
