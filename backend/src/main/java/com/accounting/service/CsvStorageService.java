@@ -78,4 +78,15 @@ public class CsvStorageService {
                 .map(AccountingRecord::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
+
+    public void deleteAll() {
+        try {
+            // 清空文件内容，若不存在则创建空文件
+            try (PrintWriter writer = new PrintWriter(new FileWriter(CSV_FILE))) {
+                // 写入空内容
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 }

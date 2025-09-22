@@ -62,4 +62,18 @@ public class AccountingController {
         response.put("total", sum);
         return ResponseEntity.ok(response);
     }
+
+    @DeleteMapping("/deleteAll")
+    public ResponseEntity<Map<String, String>> deleteAll() {
+        try {
+            accountingService.deleteAll();
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "All records deleted successfully");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> response = new HashMap<>();
+            response.put("error", "Failed to delete all records: " + e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
 }

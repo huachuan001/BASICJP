@@ -38,4 +38,8 @@ public class AccountingService {
     public BigDecimal calculateSum() {
         return csvStorageService.calculateSum();
     }
+
+    public void deleteAll() {
+        csvStorageService.deleteAll();
+    }
 }
