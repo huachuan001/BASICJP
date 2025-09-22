@@ -3,6 +3,8 @@ package com.accounting.controller;
 import com.accounting.model.AccountingRecord;
 import com.accounting.model.PageResponse;
 import com.accounting.service.AccountingService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +20,7 @@ public class AccountingController {
 
     @Autowired
     private AccountingService accountingService;
+    private static final Logger logger = LoggerFactory.getLogger(AccountingController.class);
 
     @GetMapping("/records")
     public ResponseEntity<PageResponse<AccountingRecord>> getRecords(
@@ -44,6 +47,7 @@ public class AccountingController {
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<Map<String, String>> deleteRecord(@PathVariable Long id) {
         try {
+            logger.info("Deleting record with id={}", id);
             accountingService.deleteRecord(id);
             Map<String, String> response = new HashMap<>();
             response.put("message", "Record deleted successfully");
@@ -66,6 +70,7 @@ public class AccountingController {
     @DeleteMapping("/deleteAll")
     public ResponseEntity<Map<String, String>> deleteAll() {
         try {
+            logger.info("Deleting all records");
             accountingService.deleteAll();
             Map<String, String> response = new HashMap<>();
             response.put("message", "All records deleted successfully");
