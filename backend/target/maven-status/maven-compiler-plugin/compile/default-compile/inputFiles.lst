@@ -1,6 +1,6 @@
-/Users/huachuan/basicJp/BASICJP/backend/src/main/java/com/accounting/model/AccountingRecord.java
-/Users/huachuan/basicJp/BASICJP/backend/src/main/java/com/accounting/service/CsvStorageService.java
-/Users/huachuan/basicJp/BASICJP/backend/src/main/java/com/accounting/service/AccountingService.java
-/Users/huachuan/basicJp/BASICJP/backend/src/main/java/com/accounting/controller/AccountingController.java
-/Users/huachuan/basicJp/BASICJP/backend/src/main/java/com/accounting/model/PageResponse.java
-/Users/huachuan/basicJp/BASICJP/backend/src/main/java/com/accounting/AccountingApplication.java
+/Users/huachuan/basicJp/backend/src/main/java/com/accounting/model/PageResponse.java
+/Users/huachuan/basicJp/backend/src/main/java/com/accounting/service/AccountingService.java
+/Users/huachuan/basicJp/backend/src/main/java/com/accounting/AccountingApplication.java
+/Users/huachuan/basicJp/backend/src/main/java/com/accounting/model/AccountingRecord.java
+/Users/huachuan/basicJp/backend/src/main/java/com/accounting/service/CsvStorageService.java
+/Users/huachuan/basicJp/backend/src/main/java/com/accounting/controller/AccountingController.java

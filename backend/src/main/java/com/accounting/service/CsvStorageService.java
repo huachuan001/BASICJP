@@ -1,6 +1,8 @@
 package com.accounting.service;
 
 import com.accounting.model.AccountingRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -16,11 +18,12 @@ import java.util.List;
 public class CsvStorageService {
     private static final String CSV_FILE = "data.csv";
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final Logger logger = LoggerFactory.getLogger(CsvStorageService.class);
 
     public List<AccountingRecord> loadRecords() {
         List<AccountingRecord> records = new ArrayList<>();
         try {
-            if (Files.exists(Paths.get(CSV_FILE))) {
+            if (Files.exists(Paths.get(CSV_FILE)) && !Files.isDirectory(Paths.get(CSV_FILE))) {
                 List<String> lines = Files.readAllLines(Paths.get(CSV_FILE));
                 for (int i = 0; i < lines.size(); i++) {
                     String line = lines.get(i);
@@ -38,20 +41,26 @@ public class CsvStorageService {
                 }
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.warn("Failed to load records from {}: {}", CSV_FILE, e.toString());
         }
         return records;
     }
 
     public void saveRecords(List<AccountingRecord> records) {
-        try (PrintWriter writer = new PrintWriter(new FileWriter(CSV_FILE))) {
+        try {
+            if (Files.exists(Paths.get(CSV_FILE)) && Files.isDirectory(Paths.get(CSV_FILE))) {
+                logger.warn("Cannot save records: {} is a directory", CSV_FILE);
+                return;
+            }
+            try (PrintWriter writer = new PrintWriter(new FileWriter(CSV_FILE))) {
             for (AccountingRecord record : records) {
                 writer.println(record.getDate().format(DATE_FORMATTER) + "," + 
                              record.getAmount() + "," + 
                              record.getContent());
             }
+            }
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.warn("Failed to save records to {}: {}", CSV_FILE, e.toString());
         }
     }
 
@@ -77,5 +86,19 @@ public class CsvStorageService {
         return records.stream()
                 .map(AccountingRecord::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    public void deleteAll() {
+        try {
+            if (Files.exists(Paths.get(CSV_FILE)) && Files.isDirectory(Paths.get(CSV_FILE))) {
+                logger.warn("Cannot deleteAll: {} is a directory", CSV_FILE);
+                return;
+            }
+            try (PrintWriter writer = new PrintWriter(new FileWriter(CSV_FILE))) {
+                // write empty
+            }
+        } catch (IOException e) {
+            logger.warn("Failed to deleteAll for {}: {}", CSV_FILE, e.toString());
+        }
     }
 }
