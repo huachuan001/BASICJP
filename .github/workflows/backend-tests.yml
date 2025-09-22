@@ -37,6 +37,53 @@ jobs:
         working-directory: backend
         run: mvn -B -e clean test
 
+      - name: Generate Markdown test summary
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          # Aggregate surefire results
+          RUN=0; FAIL=0; ERR=0; SKIP=0
+          while read -r line; do
+            r=$(echo "$line" | sed -n 's/.*Tests run: \([0-9]\+\).*/\1/p')
+            f=$(echo "$line" | sed -n 's/.*Failures: \([0-9]\+\).*/\1/p')
+            e=$(echo "$line" | sed -n 's/.*Errors: \([0-9]\+\).*/\1/p')
+            s=$(echo "$line" | sed -n 's/.*Skipped: \([0-9]\+\).*/\1/p')
+            RUN=$((RUN + r))
+            FAIL=$((FAIL + f))
+            ERR=$((ERR + e))
+            SKIP=$((SKIP + s))
+          done < <(grep -h "Tests run:" backend/target/surefire-reports/*.txt)
+
+          # Coverage from JaCoCo XML
+          LINE_MISSED=$(grep -o '<counter type="LINE"[^>]*/>' backend/target/site/jacoco/jacoco.xml | head -1 | sed -n 's/.*missed="\([0-9]\+\)".*/\1/p')
+          LINE_COVERED=$(grep -o '<counter type="LINE"[^>]*/>' backend/target/site/jacoco/jacoco.xml | head -1 | sed -n 's/.*covered="\([0-9]\+\)".*/\1/p')
+          TOTAL=$((LINE_MISSED + LINE_COVERED))
+          PCT=0
+          if [ "$TOTAL" -gt 0 ]; then
+            PCT=$(( (100 * LINE_COVERED) / TOTAL ))
+          fi
+
+          echo "### Backend Unit Test Summary" > test-summary.md
+          echo "" >> test-summary.md
+          echo "- **Tests run**: $RUN" >> test-summary.md
+          echo "- **Failures**: $FAIL" >> test-summary.md
+          echo "- **Errors**: $ERR" >> test-summary.md
+          echo "- **Skipped**: $SKIP" >> test-summary.md
+          echo "- **Line coverage**: ${PCT}% (covered $LINE_COVERED / total $TOTAL)" >> test-summary.md
+          echo "" >> test-summary.md
+          if [ "$FAIL" -ne 0 ] || [ "$ERR" -ne 0 ]; then
+            echo "> ❌ Some tests failed. MR/PR is blocked." >> test-summary.md
+          else
+            echo "> ✅ All tests passed. Coverage gate enforced at 100%." >> test-summary.md
+          fi
+
+      - name: Comment test summary on PR
+        if: github.event_name == 'pull_request'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body-file: test-summary.md
+
       - name: Upload JaCoCo report
         if: always()
         uses: actions/upload-artifact@v4
