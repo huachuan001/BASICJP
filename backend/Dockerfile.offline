@@ -1,0 +1,39 @@
+# 离线构建版本 - 使用本地Java环境
+FROM openjdk:17-jdk-slim
+
+WORKDIR /app
+
+# 安装Maven
+RUN apt-get update && \
+    apt-get install -y maven curl && \
+    rm -rf /var/lib/apt/lists/*
+
+# 复制Maven配置文件
+COPY pom.xml .
+
+# 下载依赖（利用Docker缓存层）
+RUN mvn dependency:go-offline -B
+
+# 复制源代码
+COPY src ./src
+
+# 构建应用
+RUN mvn clean package -DskipTests
+
+# 创建数据目录
+RUN mkdir -p /app/data
+
+# 创建非root用户
+RUN addgroup --system spring && adduser --system spring --ingroup spring
+RUN chown -R spring:spring /app
+USER spring:spring
+
+# 暴露端口
+EXPOSE 8080
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8080/actuator/health || exit 1
+
+# 运行应用
+ENTRYPOINT ["java", "-jar", "target/accounting-system-1.0.0.jar"]
