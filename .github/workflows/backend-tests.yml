@@ -39,7 +39,7 @@ jobs:
 
       - name: Run unit tests with coverage
         working-directory: backend
-        run: mvn -B -e clean test
+        run: mvn -B -e clean test jacoco:report
 
       - name: Publish JUnit Test Report (summary + PR comment)
         if: always()
@@ -60,14 +60,13 @@ jobs:
           badge: true
           format: markdown
           output: both
-          output_file: coverage-summary.md
 
       - name: Comment coverage summary on PR
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.pull_request.number }}
-          body-file: coverage-summary.md
+          body-file: code-coverage-results.md
 
       - name: Upload JaCoCo report
         if: always()
