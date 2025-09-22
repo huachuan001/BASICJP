@@ -12,6 +12,10 @@ on:
       - 'backend/**'
       - '.github/workflows/backend-tests.yml'
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -77,8 +81,12 @@ jobs:
             echo "> ✅ All tests passed. Coverage gate enforced at 100%." >> test-summary.md
           fi
 
+          # Also write to job summary for visibility regardless of comment permissions
+          echo "## Backend Unit Test Summary" >> $GITHUB_STEP_SUMMARY
+          cat test-summary.md >> $GITHUB_STEP_SUMMARY
+
       - name: Comment test summary on PR
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.pull_request.number }}
