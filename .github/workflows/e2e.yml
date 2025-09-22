@@ -1,64 +1,90 @@
-name: E2E Tests
+name: PR E2E Tests
 
 on:
   pull_request:
-    branches: [ "**" ]
+    branches: [ main ]
 
 jobs:
   e2e:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
-      - name: Build backend
-        working-directory: backend
-        run: mvn -q -DskipTests package
-
-      - name: Start backend
-        working-directory: backend
-        run: nohup java -jar target/accounting-system-1.0.0.jar >/dev/null 2>&1 & echo $! > backend.pid
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Cache Maven
+        uses: actions/cache@v4
         with:
-          node-version: '20'
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-m2-${{ hashFiles('backend/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2-
+
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: frontend/node_modules
+          key: ${{ runner.os }}-npm-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-npm-
+
+      - name: Install backend deps and build
+        working-directory: backend
+        run: |
+          ./mvnw -q -DskipTests package || mvn -q -DskipTests package
 
       - name: Install frontend deps
         working-directory: frontend
         run: npm ci
 
-      - name: Build frontend
+      - name: Install Playwright browsers
         working-directory: frontend
-        run: npm run build
+        run: npx playwright install --with-deps chromium
+
+      - name: Start backend
+        run: |
+          java -jar backend/target/accounting-system-1.0.0.jar &
+          echo $! > backend.pid
+        shell: bash
+
+      - name: Wait for backend
+        run: |
+          for i in {1..40}; do
+            if curl -fsS http://localhost:8080/actuator/health >/dev/null; then
+              echo "Backend is up"; exit 0; fi; sleep 2; done
+          echo "Backend failed to start"; curl -v http://localhost:8080/actuator/health || true; exit 1
 
       - name: Start frontend
         working-directory: frontend
-        run: npm run start &
-
-      - name: Install Playwright browsers
-        working-directory: frontend
-        run: npx playwright install --with-deps
-
-      - name: Wait for services
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8080
+          PORT: 3000
         run: |
-          for i in {1..60}; do
-            if curl -fsS http://localhost:3000 >/dev/null; then echo frontend up; break; fi; sleep 2; done
-          for i in {1..60}; do
-            if curl -fsS http://localhost:8080/actuator/health >/dev/null; then echo backend up; break; fi; sleep 2; done
+          npm run build
+          npm start &
+          echo $! > ../frontend.pid
 
-      - name: Run E2E tests
+      - name: Wait for frontend
+        run: |
+          for i in {1..40}; do
+            if curl -fsS http://localhost:3000 >/dev/null; then
+              echo "Frontend is up"; exit 0; fi; sleep 2; done
+          echo "Frontend failed to start"; curl -v http://localhost:3000 || true; exit 1
+
+      - name: Run Playwright tests
         working-directory: frontend
         env:
-          BASE_URL: http://localhost:3000
-        run: npx playwright test --reporter=html,json
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+        run: npm run test:e2e -- --reporter=list,github
 
       - name: Upload Playwright report
         if: always()
@@ -67,18 +93,21 @@ jobs:
           name: playwright-report
           path: frontend/playwright-report
 
-      - name: Save summary
+      - name: Kill services
         if: always()
         run: |
-          echo "### Playwright E2E Results" >> $GITHUB_STEP_SUMMARY
-          echo "Artifact: playwright-report" >> $GITHUB_STEP_SUMMARY
+          kill $(cat backend.pid) 2>/dev/null || true
+          kill $(cat frontend.pid) 2>/dev/null || true
 
-      - name: PR comment with results
-        if: always() && github.event_name == 'pull_request'
-        uses: thollander/actions-comment-pull-request@v3
+      - name: Comment test result on PR
+        if: always()
+        uses: thollander/actions-comment-pull-request@v2
         with:
           message: |
-            Playwright E2E completed. Download the report from the workflow artifacts named "playwright-report".
-            Status: ${{ job.status }}
+            E2E 运行完成：${{ job.status }}
+            - 报告下载：见 Actions Artifacts 中的 playwright-report
+            - 触发工作流：${{ github.workflow }} / Run: ${{ github.run_id }}
+          comment_includes: 'E2E 运行完成：'
+          pr_number: ${{ github.event.pull_request.number }}
 
 
